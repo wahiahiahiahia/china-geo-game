@@ -1,0 +1,1380 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  background: #050914;
+}
+
+#app {
+  position: relative;
+}
+
+/* 默认坐标提示；游戏顶部题目栏中的 #coordinates 会单独覆盖这些样式 */
+#coordinates {
+  position: absolute;
+  left: 20px;
+  bottom: 20px;
+  z-index: 10;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: sans-serif;
+  pointer-events: none;
+}
+
+
+/* 品牌信息 */
+#game-brand {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+#game-brand span {
+  display: block;
+  margin-top: 5px;
+  color: #91a7ba;
+  font-size: 10px;
+  font-weight: normal;
+  letter-spacing: 1px;
+}
+
+#game-info {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+/* 游戏顶部信息栏：固定居中窄框，第一行放进度/分数/怎么玩，第二行放题目 */
+#game-header {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  z-index: 20;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 10px;
+
+  width: min(420px, calc(100% - 24px));
+  min-height: 44px;
+  height: auto;
+  padding: 10px 12px;
+
+  background: rgba(0, 12, 22, 0.88);
+  color: white;
+  border: 1px solid rgba(35, 230, 230, 0.75);
+  border-radius: 3px;
+  box-shadow: none;
+  backdrop-filter: none;
+
+  font-family: sans-serif;
+}
+
+/* 题目文字：固定在第二行，自动换行 */
+#game-header #coordinates {
+  grid-column: 1 / -1;
+  grid-row: 2;
+
+  position: static;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 0;
+
+  background: none;
+  color: #35e8e8;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+
+  text-align: left;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+
+  border-radius: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* 题目进度 */
+#progress {
+  grid-column: 1;
+  grid-row: 1;
+  position: static;
+  flex-shrink: 0;
+  padding: 0;
+  background: none;
+  color: #aab9c5;
+  font-size: 13px;
+  font-weight: normal;
+}
+
+/* 题目标题 */
+#question-title {
+  position: static;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  box-shadow: none;
+}
+
+/* 分数显示 */
+#score-display {
+  grid-column: 2;
+  grid-row: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 3px;
+  color: #ffffff;
+}
+
+#score-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-unit {
+  font-size: 13px;
+  font-weight: normal;
+}
+
+/* 怎么玩：独立放在屏幕左侧 */
+/* 游戏规则：固定在屏幕左上角 */
+#how-to-play {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  transform: none;
+  z-index: 40;
+
+  padding: 9px 12px;
+  border: 1px solid rgba(53, 232, 232, 0.65);
+  border-radius: 4px;
+  background: rgba(0, 20, 30, 0.88);
+  color: #35e8e8;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(53, 232, 232, 0.12);
+}
+
+/* 确认和下一题按钮：固定在右下方，避免与自动换行的题目栏重叠 */
+#confirm,
+#next-question {
+  position: absolute;
+  right: 20px;
+  left: auto;
+  top: auto;
+  z-index: 20;
+
+  padding: 7px 16px;
+  border: 1px solid #20dede;
+  border-radius: 3px;
+
+  background: rgba(0, 20, 30, 0.9);
+  color: #35eeee;
+
+  font-size: 13px;
+  font-weight: normal;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+#confirm {
+  bottom: 40px;
+}
+
+#next-question {
+  bottom: 100px;
+}
+
+#confirm:hover,
+#next-question:hover {
+  background: #0b5960;
+  color: white;
+}
+
+/* 分享成绩按钮 */
+#share-score {
+  position: fixed;
+  left: 50%;
+  top: 260px;
+  transform: translateX(-50%);
+  z-index: 100;
+
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+
+  background: #ffd400;
+  color: #101522;
+  border: 2px solid #fff0a3;
+
+  font-size: 16px;
+  font-weight: 800;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(255, 212, 0, 0.35);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#share-score:hover {
+  transform: translateX(-50%) scale(1.08);
+  box-shadow: 0 0 26px rgba(255, 212, 0, 0.6);
+}
+
+#share-score:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+/* =========================
+   游戏结束：顶部成绩总览
+========================= */
+
+#results-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow-y: auto;
+  background:
+    radial-gradient(ellipse at 50% 20%, #1b2639 0%, #101725 55%, #080b12 100%);
+  color: #f5f6fa;
+  font-family: sans-serif;
+}
+
+#results-content {
+  width: min(440px, calc(100% - 32px));
+  margin: 24px auto 50px;
+}
+
+#results-summary {
+  padding: 22px 18px 18px;
+  background: rgba(15, 24, 39, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 18px;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35);
+}
+
+.results-heading {
+  text-align: center;
+  color: #cbd5e1;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+#final-score {
+  margin-top: 10px;
+  text-align: center;
+  color: #4387ff;
+  font-size: 64px;
+  line-height: 1.1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-subtitle {
+  margin-top: 5px;
+  text-align: center;
+  color: #8793a5;
+  font-size: 12px;
+}
+
+#results-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin: 17px 0 18px;
+}
+
+.result-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: inset 0 1px 3px rgba(255,255,255,0.25);
+}
+
+.result-dot.low {
+  background: #df4848;
+}
+
+.result-dot.mid {
+  background: #e9bd28;
+}
+
+.result-dot.good {
+  background: #28b879;
+}
+
+#results-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 19px;
+  padding: 0 7px;
+  background: #263143;
+  border-radius: 4px;
+}
+
+.result-bar-label {
+  width: 25px;
+  color: #dce3ed;
+  font-size: 10px;
+}
+
+.result-bar-track {
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  background: #111a28;
+}
+
+.result-bar-fill {
+  height: 100%;
+}
+
+.result-bar-fill.low {
+  background: #df4848;
+}
+
+.result-bar-fill.mid {
+  background: #dcb729;
+}
+
+.result-bar-fill.good {
+  background: #27a975;
+}
+
+/* 六档成绩颜色 */
+.result-bar-fill.gold {
+  background: #f5c542;
+}
+
+.result-bar-fill.green {
+  background: #28b879;
+}
+
+.result-bar-fill.blue {
+  background: #3984ff;
+}
+
+.result-bar-fill.cyan {
+  background: #22cddd;
+}
+
+.result-bar-fill.orange {
+  background: #f08a35;
+}
+
+.result-bar-fill.red {
+  background: #df4848;
+}
+
+/* 成绩圆点同步使用六档颜色 */
+.result-dot.gold {
+  background: #f5c542;
+}
+
+.result-dot.green {
+  background: #28b879;
+}
+
+.result-dot.blue {
+  background: #3984ff;
+}
+
+.result-dot.cyan {
+  background: #22cddd;
+}
+
+.result-dot.orange {
+  background: #f08a35;
+}
+
+.result-dot.red {
+  background: #df4848;
+}
+
+
+.result-bar-score {
+  width: 27px;
+  text-align: right;
+  color: #f4f6fa;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 17px;
+}
+
+.results-actions button {
+  flex: 1;
+  height: 39px;
+  border: none;
+  border-radius: 22px;
+  background: #2465f5;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.results-actions button:hover {
+  background: #3980ff;
+}
+
+#share-feedback {
+  min-height: 16px;
+  margin-top: 10px;
+  text-align: center;
+  color: #8fa7c8;
+  font-size: 11px;
+}
+
+/* 结算页分享按钮覆盖主游戏界面的圆形样式 */
+#results-summary #share-score {
+  position: static;
+  transform: none;
+  width: auto;
+  height: 39px;
+  flex: 1;
+  border-radius: 22px;
+  background: #2465f5;
+  color: white;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: none;
+  transition: background 0.2s;
+}
+
+#results-summary #share-score:hover {
+  transform: none;
+  background: #3980ff;
+  box-shadow: none;
+}
+
+#results-summary #share-score:active {
+  transform: none;
+}
+
+/* =========================
+   第二部分：更多挑战入口
+========================= */
+
+#more-challenges {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 8px 0 20px;
+}
+
+.more-challenges-title {
+  color: #f1f5f9;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+#more-challenges-button {
+  min-width: 150px;
+  padding: 10px 25px;
+  border: 1px solid #00cdeB;
+  border-radius: 24px;
+  background: #062b3b;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(0, 205, 235, 0.22);
+  transition: all 0.2s;
+}
+
+#more-challenges-button:hover {
+  background: #08465a;
+  box-shadow: 0 0 25px rgba(0, 205, 235, 0.4);
+}
+
+#more-challenges-feedback {
+  color: #8295ac;
+  font-size: 11px;
+}
+
+/* =========================
+   第三部分：个人定位距离分布
+========================= */
+
+#distance-section {
+  margin-top: 24px;
+  padding: 22px 18px;
+  background: rgba(15, 24, 39, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 18px;
+  font-family: sans-serif;
+}
+
+.distance-heading {
+  color: #f1f5f9;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.distance-subtitle {
+  margin-top: 7px;
+  margin-bottom: 22px;
+  color: #8793a5;
+  font-size: 11px;
+  text-align: center;
+}
+
+#distance-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.distance-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.distance-label {
+  width: 92px;
+  flex-shrink: 0;
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+.distance-track {
+  flex: 1;
+  height: 13px;
+  overflow: hidden;
+  background: #263143;
+  border-radius: 3px;
+}
+
+.distance-fill {
+  height: 100%;
+  background: #3984ff;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.distance-count {
+  width: 36px;
+  flex-shrink: 0;
+  color: #dce5f2;
+  font-size: 11px;
+  text-align: right;
+  font-weight: 600;
+}
+
+#distance-summary {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  color: #8fa7c8;
+  font-size: 11px;
+  text-align: center;
+}
+
+/* 今日数据四张卡片 */
+#daily-stats {
+  margin-top: 24px;
+  padding: 24px 18px;
+  background: rgba(15, 24, 39, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 18px;
+  font-family: sans-serif;
+}
+
+.daily-stats-heading {
+  color: #f1f5f9;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.daily-stats-subtitle {
+  margin-top: 8px;
+  margin-bottom: 22px;
+  color: #8793a5;
+  font-size: 12px;
+  text-align: center;
+}
+
+.daily-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.daily-stat-card {
+  min-height: 125px;
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #1c293b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.daily-stat-label {
+  color: #aab8cb;
+  font-size: 12px;
+}
+
+.daily-stat-value {
+  margin-top: 13px;
+  color: #f1f5f9;
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.daily-stat-note {
+  margin-top: 8px;
+  color: #718198;
+  font-size: 10px;
+}
+
+/* 五道题详细结果 */
+#detailed-results {
+  margin-top: 24px;
+  padding: 24px 18px;
+  background: rgba(15, 24, 39, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 18px;
+  font-family: sans-serif;
+}
+
+.detailed-heading {
+  color: #f1f5f9;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.detailed-subtitle {
+  margin-top: 8px;
+  margin-bottom: 22px;
+  color: #8793a5;
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+#detailed-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.detail-card {
+  padding: 17px 15px;
+  background: #1c293b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.detail-card-heading {
+  display: flex;
+  justify-content: space-between;
+  color: #8fa7c8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-city {
+  margin-top: 15px;
+  color: #f1f5f9;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.detail-answer {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-answer-label {
+  color: #8793a5;
+  font-size: 11px;
+}
+
+.detail-answer-value {
+  color: #60a5fa;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detail-distance {
+  margin-top: 14px;
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.detail-coordinates {
+  margin-top: 9px;
+  color: #8793a5;
+  font-size: 10px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* 每道题的地图复盘 */
+.detail-map {
+  width: 100%;
+  height: 220px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #101827;
+}
+
+/* 地图图例 */
+.detail-map-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  color: #a0aec0;
+  font-size: 11px;
+}
+
+.detail-map-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid white;
+}
+
+.guess-dot {
+  background: #ef4444;
+}
+
+.answer-dot {
+  background: #2563eb;
+}
+
+.legend-line {
+  width: 17px;
+  height: 3px;
+  background: #ffd43b;
+  display: inline-block;
+  border-radius: 2px;
+}
+
+.detail-knowledge {
+  margin-top: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.detail-knowledge-title {
+  color: #ffd43b;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.detail-knowledge p {
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.detail-fact-title {
+  color: #60a5fa;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 16px;
+  margin-bottom: 6px;
+}
+
+/* 自定义成绩分享窗口 */
+#custom-share-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.custom-share-panel {
+  position: relative;
+  width: min(680px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.custom-share-close {
+  position: absolute;
+  top: -42px;
+  right: 0;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.custom-share-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: white;
+}
+
+.custom-share-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+
+.custom-share-icons button {
+  width: 54px;
+  height: 54px;
+  padding: 11px;
+  border: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.custom-share-wechat {
+  background: #20c66b;
+}
+
+.custom-share-wechat svg {
+  width: 100%;
+  height: 100%;
+}
+
+.custom-share-red {
+  background: #ed3348;
+  color: white;
+}
+
+.custom-share-red span {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.custom-share-feedback {
+  min-height: 20px;
+  color: #d1d5db;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 手机屏幕适配 */
+@media (max-width: 600px) {
+  #game-header {
+    top: 8px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: calc(100% - 16px);
+    max-width: 420px;
+    column-gap: 8px;
+    row-gap: 8px;
+    padding: 6px 8px;
+  }
+
+  #game-header #coordinates {
+    font-size: 14px;
+  }
+
+  #progress {
+    font-size: 11px;
+  }
+
+  #score-value {
+    font-size: 26px;
+  }
+
+  .score-unit {
+    font-size: 12px;
+  }
+
+  #how-to-play {
+    left: 8px;
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+
+  #confirm,
+  #next-question {
+    right: 8px;
+    left: auto;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  #confirm {
+    bottom: 12px;
+  }
+
+  #next-question {
+    bottom: 64px;
+  }
+
+  .custom-share-panel {
+    width: 100%;
+  }
+
+  .custom-share-icons button {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+/* 地点知识介绍：科技感档案卡片 */
+#location-info {
+  position: absolute;
+  top: 50%;
+  right: 28px;
+  transform: translateY(-50%);
+  z-index: 30;
+  width: min(390px, calc(100% - 40px));
+  padding: 22px 22px 20px;
+  box-sizing: border-box;
+  background: linear-gradient(145deg, rgba(5, 24, 39, 0.96), rgba(4, 15, 29, 0.94));
+  border: 1px solid rgba(69, 220, 255, 0.9);
+  border-radius: 18px;
+  color: #ffffff;
+  font-family: inherit;
+  box-shadow:
+    0 0 0 1px rgba(69, 220, 255, 0.12),
+    0 0 22px rgba(22, 190, 235, 0.22),
+    inset 0 0 24px rgba(22, 190, 235, 0.05);
+}
+
+/* 沿卡片上沿掠过的冰蓝闪光 */
+#location-info::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 30%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #ffffff 48%, #55eaff 75%, transparent);
+  filter: drop-shadow(0 0 4px #55eaff) drop-shadow(0 0 8px #55eaff);
+  animation: location-card-glint 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes location-card-glint {
+  0%, 12% { transform: translateX(-15%); opacity: 0; }
+  22% { opacity: 1; }
+  72% { transform: translateX(245%); opacity: 1; }
+  86%, 100% { transform: translateX(245%); opacity: 0; }
+}
+
+.location-info-kicker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+  color: #54e4ff;
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+.location-info-icon {
+  display: block;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  color: #54e4ff;
+  filter: drop-shadow(0 0 4px rgba(69, 220, 255, 0.45));
+}
+
+.location-info-label {
+  white-space: nowrap;
+}
+
+.location-info-rule {
+  height: 1px;
+  flex: 1 1 auto;
+  min-width: 12px;
+  background: linear-gradient(90deg, rgba(69, 220, 255, 0.8), rgba(69, 220, 255, 0.08));
+}
+
+.location-info-unlocked {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(69, 220, 255, 0.95);
+  border-radius: 999px;
+  color: #63eaff;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  box-shadow: 0 0 9px rgba(22, 190, 235, 0.22), inset 0 0 8px rgba(22, 190, 235, 0.08);
+}
+
+.location-info-unlocked svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.location-info-title {
+  margin: 0 0 14px;
+  color: #f7fbff;
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+#location-info-content {
+  color: #d2e0eb;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.85;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+#location-info-content p {
+  margin: 0 0 10px;
+}
+
+#location-info-content p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  #location-info {
+    top: auto;
+    bottom: 24px;
+    right: 12px;
+    width: min(360px, calc(100% - 24px));
+    padding: 17px 16px;
+    transform: none;
+    border-radius: 15px;
+  }
+
+  .location-info-kicker {
+    gap: 7px;
+    margin-bottom: 9px;
+    font-size: 10px;
+  }
+
+  .location-info-icon {
+    flex-basis: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  .location-info-unlocked {
+    gap: 3px;
+    padding: 4px 7px;
+    font-size: 9px;
+  }
+
+  .location-info-unlocked svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .location-info-title {
+    font-size: 22px;
+    margin-bottom: 9px;
+  }
+
+  #location-info-content {
+    font-size: 12px;
+    line-height: 1.7;
+  }
+}
+
+/* =========================
+   游戏规则弹窗
+========================= */
+
+.rules-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-family: sans-serif;
+}
+
+.rules-modal.is-open {
+  display: flex;
+}
+
+.rules-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 8, 18, 0.88);
+  backdrop-filter: blur(6px);
+}
+
+.rules-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 30px 26px;
+  background: linear-gradient(145deg, #0b2032, #071321);
+  border: 1px solid rgba(53, 232, 232, 0.75);
+  border-radius: 12px;
+  color: #ffffff;
+  box-shadow: 0 0 35px rgba(0, 210, 240, 0.18);
+}
+
+.rules-close {
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  border: none;
+  background: none;
+  color: #9bb4c5;
+  font-size: 27px;
+  cursor: pointer;
+}
+
+.rules-eyebrow {
+  margin-bottom: 12px;
+  color: #35e8e8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+#rules-title {
+  margin-bottom: 12px;
+  color: #ffffff;
+  font-size: 27px;
+}
+
+.rules-intro {
+  margin-bottom: 22px;
+  color: #a9c2d2;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.rules-list {
+  padding-left: 22px;
+  color: #e0edf5;
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.rules-list li {
+  padding-left: 4px;
+  margin-bottom: 8px;
+}
+
+.rules-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 17px;
+  background: rgba(53, 232, 232, 0.06);
+  border: 1px solid rgba(53, 232, 232, 0.2);
+  border-radius: 8px;
+}
+
+.rules-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.rules-facts span {
+  color: #91aabd;
+}
+
+.rules-facts strong {
+  color: #35e8e8;
+  font-weight: 600;
+}
+
+.rules-start {
+  width: 100%;
+  margin-top: 24px;
+  padding: 13px;
+  border: 1px solid #35e8e8;
+  border-radius: 5px;
+  background: rgba(0, 160, 180, 0.2);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rules-start:hover {
+  background: rgba(0, 190, 210, 0.35);
+}
+
+@media (max-width: 600px) {
+  .rules-dialog {
+    padding: 26px 20px;
+  }
+}
+/* 答题评价：第二行科技感文字 */
+#game-header #coordinates .distance-feedback {
+  display: block;
+  margin-top: 8px;
+  color: #ffffff;
+  font-family: "SF Mono", "JetBrains Mono", "IBM Plex Mono", Consolas, monospace;
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.8;
+  letter-spacing: 0.3px;
+}
+
+
+/* 五道题的图片：统一缩放，完整显示，不裁切 */
+.detail-photo-wrap {
+  display: block;
+  width: 100%;
+  margin: 16px 0 0;
+  overflow: hidden;
+}
+
+.detail-photo {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: contain;
+  object-position: center;
+  background: #101827;
+  border-radius: 10px;
+}
+
+/* 图片说明 */
+.detail-photo-credit {
+  margin-top: 7px;
+  color: #8793a5;
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.detail-photo-credit a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.detail-photo-credit a:hover {
+  text-decoration: underline;
+}
+
+/* 图片加载失败时的提示 */
+.detail-photo-fallback {
+  width: 100%;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #101827;
+  color: #8793a5;
+  border-radius: 10px;
+  font-size: 12px;
+}
