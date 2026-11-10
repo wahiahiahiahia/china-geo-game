@@ -231,7 +231,7 @@ const map = new Map({
   center: [104, 35],
   zoom: 2,
   minZoom: 2,
-  maxZoom: 18,
+  maxZoom: 10,
   maxBounds: [
     [55, 0],
     [145, 60]
@@ -351,6 +351,10 @@ function calculateRegionDistance(point, question) {
 let marker = null
 let answerMarker = null
 let hasConfirmed = false
+
+// 答案展示结束后返回中国全景
+let answerMoveEndHandler = null
+let returnToOverviewTimer = null
 
 
 
@@ -803,6 +807,25 @@ document.querySelector('#confirm').addEventListener('click', () => {
       ? null
       : getAnswerFeature(currentQuestionData)
   
+        // 飞向答案结束后，停留2秒，再平滑缩回中国全景
+  if (answerFeature || currentQuestionData.type === 'mountain') {
+    answerMoveEndHandler = () => {
+      map.off('moveend', answerMoveEndHandler)
+      answerMoveEndHandler = null
+
+      returnToOverviewTimer = setTimeout(() => {
+        map.easeTo({
+          center: [104, 35],
+          zoom: 2.8,
+          duration: 1500
+        })
+
+        returnToOverviewTimer = null
+      }, 2000)
+    }
+
+    map.on('moveend', answerMoveEndHandler)
+  }
   if (answerFeature) {
     map.addSource('answer-region', {
       type: 'geojson',
@@ -1197,6 +1220,19 @@ document.querySelector('#share-score').addEventListener('click', async () => {
 })
 
 document.querySelector('#next-question').addEventListener('click', () => {
+    // 进入下一题时，取消上一题尚未执行的返回全景动作
+    if (answerMoveEndHandler) {
+      map.off('moveend', answerMoveEndHandler)
+      answerMoveEndHandler = null
+    }
+  
+    if (returnToOverviewTimer) {
+      clearTimeout(returnToOverviewTimer)
+      returnToOverviewTimer = null
+    }
+  
+    // 停止上一题可能尚未结束的地图动画
+    map.stop()
   // 最后一题的按钮负责进入详细结果页，不再执行下一题逻辑
   if (currentQuestion >= questions.length) {
     renderResultsSummary()
