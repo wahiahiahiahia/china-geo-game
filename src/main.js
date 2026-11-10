@@ -12,6 +12,7 @@ setWorkerUrl(workerUrl)
 const questions = getDailyQuestions()
 
 const token = import.meta.env.VITE_GEOVIS_TOKEN
+const tiandituKey = import.meta.env.VITE_TIANDITU_KEY
 console.log('Token 是否加载：', !!token)
 
 console.log('Token 是否读取成功：', Boolean(token))
@@ -191,13 +192,13 @@ const map = new Map({
   style: {
     version: 8,
     sources: {
-      geovis: {
+      tianditu: {
         type: 'raster',
-       tiles: [
-  'https://api.open.geovisearth.com/pj/base/v1/2025/{z}/{x}/{y}?format=webp&tmsIds=w&token=' + token
-],
+        tiles: [
+          'https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + tiandituKey
+        ],
         tileSize: 256,
-        attribution: '© Geovis'
+        attribution: '© 天地图'
       },
     
       province: {
@@ -209,7 +210,7 @@ const map = new Map({
       {
         id: 'satellite',
         type: 'raster',
-        source: 'geovis'
+        source: 'tianditu'
       },
       {
         id: 'province-boundaries',
