@@ -1,4 +1,3 @@
-
 import './style.css'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Map, Marker, NavigationControl, setWorkerUrl } from 'maplibre-gl'
@@ -6,10 +5,86 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import provinceData from './data/china_province_full.geojson?url'
 import cityData from './data/china_city.geojson?url'
 import * as turf from '@turf/turf'
-import { getDailyQuestions } from './data/weekly-questions.js'
+import {
+  initializeCloudPlayer,
+  getTodayChallenge,
+  startTodayChallenge,
+  submitTodayAnswer,
+  getTodayLeaderboard,
+  getTodayStats
+} from './services/game-api.js'
 
 setWorkerUrl(workerUrl)
-const questions = getDailyQuestions()
+
+// 题目和玩家身份由 Supabase 提供；正式答案不会在初始页面下发。
+let cloudSession = null
+let cloudChallenge = null
+let questions = []
+
+try {
+  await initializeCloudPlayer()
+  cloudChallenge = await getTodayChallenge()
+  cloudSession = await startTodayChallenge()
+
+  questions = (cloudChallenge.questions || []).map(item => ({
+    question: item.question_text,
+    questionNumber: item.question_number,
+    level: item.level,
+    topic: item.topic || '',
+    maxScore: item.max_score
+  }))
+
+  if (questions.length !== 5) {
+    throw new Error('今日题库不是完整的五道题')
+  }
+
+  const restored = cloudSession.completed_questions || []
+  for (const item of restored) {
+    const index = Number(item.answer?.question_number) - 1
+    if (index >= 0 && index < 5 && item.reveal) {
+      applyCloudReveal(questions[index], item.reveal)
+    }
+  }
+} catch (error) {
+  console.error('[Cloud Challenge] 初始化失败：', error)
+  const app = document.querySelector('#app')
+  if (app) {
+    app.innerHTML = `
+      <div style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#050914;color:#fff;font-family:system-ui,sans-serif;">
+        <div style="max-width:420px;text-align:center;">
+          <h2 style="margin:0 0 12px;">今日挑战暂时无法加载</h2>
+          <p style="line-height:1.7;color:#cbd5e1;">${String(error.message || '网络连接失败')}</p>
+          <button onclick="location.reload()" style="margin-top:12px;padding:12px 22px;border:0;border-radius:10px;background:#2563eb;color:#fff;">重新加载</button>
+        </div>
+      </div>`
+  }
+  throw error
+}
+
+function applyCloudReveal(question, reveal) {
+  question.name = reveal.answer_name || ''
+  question.coordinates = reveal.answer_coordinates || null
+  question.adcode = reveal.answer_adcode ?? reveal.adcode ?? question.adcode ?? null
+  question.answerGeometry = reveal.answer_geometry || null
+
+  const geometryType = reveal.answer_geometry_type ||
+    (reveal.answer_geometry?.type === 'Feature'
+      ? reveal.answer_geometry.geometry?.type
+      : reveal.answer_geometry?.type)
+
+  // 几何数据可能因 payload 优化而不再随答案传输，必须使用服务端返回的类型。
+  question.type = geometryType === 'Point' ? 'mountain' : 'region'
+  question.topic = reveal.topic || question.topic || question.name
+  question.knowledge = reveal.knowledge || ''
+  question.fact = reveal.fact || ''
+  question.images = Array.isArray(reveal.images) ? reveal.images : []
+
+  const image = question.images[0] || {}
+  question.image = image.url || image.src || image.image_url || ''
+  question.imageCredit = image.credit || image.author || image.source || '图片来源'
+  question.imageLicense = image.license_url || image.url || '#'
+  question.imageLicenseName = image.license_name || image.license || '图片授权信息'
+}
 
 const token = import.meta.env.VITE_GEOVIS_TOKEN
 const tiandituKey = import.meta.env.VITE_TIANDITU_KEY
@@ -43,6 +118,11 @@ document.querySelector('#app').innerHTML = `
   </div>
   <div class="location-info-title" id="location-info-title"></div>
   <div id="location-info-content"></div>
+  <button id="location-info-toggle"
+        type="button"
+        aria-expanded="false">
+  展开全文⌄
+</button>
 </div>
   <div id="results-screen" style="display:none;">
   <main id="results-content">
@@ -61,6 +141,9 @@ document.querySelector('#app').innerHTML = `
         <button id="share-score">分享成绩</button>
         <button id="track-stats">查看统计</button>
       </div>
+      <div class="results-actions">
+  <button id="back-to-game">返回游戏首页</button>
+</div>
 
       <div id="share-feedback"></div>
     </section>
@@ -95,29 +178,31 @@ document.querySelector('#app').innerHTML = `
 
     <div class="daily-stat-card">
       <div class="daily-stat-label">今日平均分</div>
-      <div class="daily-stat-value">—</div>
-      <div class="daily-stat-note">等待数据接入</div>
+      <div class="daily-stat-value" id="today-average-score">—</div>
+      <div class="daily-stat-note">完成挑战玩家</div>
     </div>
 
     <div class="daily-stat-card">
       <div class="daily-stat-label">今日参与人数</div>
-      <div class="daily-stat-value">—</div>
-      <div class="daily-stat-note">等待数据接入</div>
+      <div class="daily-stat-value" id="today-participant-count">—</div>
+      <div class="daily-stat-note">已完成五道题</div>
     </div>
 
     <div class="daily-stat-card">
       <div class="daily-stat-label">今日最容易题</div>
-      <div class="daily-stat-value">—</div>
-      <div class="daily-stat-note">等待数据接入</div>
+      <div class="daily-stat-value" id="today-easiest-question">—</div>
+      <div class="daily-stat-note">按平均得分率</div>
     </div>
 
     <div class="daily-stat-card">
       <div class="daily-stat-label">今日最难题</div>
-      <div class="daily-stat-value">—</div>
-      <div class="daily-stat-note">等待数据接入</div>
+      <div class="daily-stat-value" id="today-hardest-question">—</div>
+      <div class="daily-stat-note">按平均得分率</div>
     </div>
 
   </div>
+  <div id="today-leaderboard-status" style="margin:18px 0 10px;color:#94a3b8;font-size:13px;">点击「查看统计」加载今日排行榜</div>
+  <div id="today-leaderboard" style="display:grid;gap:8px;"></div>
 </section>
 <section id="detailed-results">
   <div class="detailed-heading">详细答题结果</div>
@@ -169,6 +254,16 @@ const closeRules = () => {
 }
 
 document.querySelector('#how-to-play').addEventListener('click', openRules)
+// 手机端答案正文展开/收起
+const locationInfo = document.querySelector('#location-info')
+const locationInfoToggle = document.querySelector('#location-info-toggle')
+
+locationInfoToggle.addEventListener('click', () => {
+  const expanded = locationInfo.classList.toggle('is-expanded')
+
+  locationInfoToggle.textContent = expanded ? '收起正文⌃' : '展开全文⌄'
+  locationInfoToggle.setAttribute('aria-expanded', String(expanded))
+})
 document.querySelector('#close-rules').addEventListener('click', closeRules)
 document.querySelector('#rules-start').addEventListener('click', closeRules)
 rulesModal.querySelector('[data-close-rules]').addEventListener('click', closeRules)
@@ -238,31 +333,56 @@ const map = new Map({
   ]
 })
 
-// 加载省级和地级市行政区划数据
+// 省级和地级市数据在后台并行加载；只有揭晓区域答案时才等待它们。
 let provinceGeoJSON = null
 let cityGeoJSON = null
 
-Promise.all([
-  fetch(provinceData).then(response => response.json()),
-  fetch(cityData).then(response => response.json())
-])
-.then(([province, city]) => {
-  provinceGeoJSON = province
-  cityGeoJSON = city
+const provinceGeoJSONPromise = fetch(provinceData)
+  .then(response => {
+    if (!response.ok) throw new Error(`省级区划加载失败：HTTP ${response.status}`)
+    return response.json()
+  })
+  .then(data => {
+    provinceGeoJSON = data
+    console.log('省级区域加载完成：', provinceGeoJSON.features?.length || 0)
+    return true
+  })
+  .catch(error => {
+    console.error('省级行政区划数据加载失败：', error)
+    return false
+  })
 
-  console.log('省级区域加载完成：', provinceGeoJSON.features.length)
-  console.log('地级市区域加载完成：', cityGeoJSON.features.length)
-})
-.catch(error => {
-  console.error('行政区划数据加载失败：', error)
-})
+const cityGeoJSONPromise = fetch(cityData)
+  .then(response => {
+    if (!response.ok) throw new Error(`地级市区划加载失败：HTTP ${response.status}`)
+    return response.json()
+  })
+  .then(data => {
+    cityGeoJSON = data
+    console.log('地级市区域加载完成：', cityGeoJSON.features?.length || 0)
+    return true
+  })
+  .catch(error => {
+    console.error('地级市行政区划数据加载失败：', error)
+    return false
+  })
 // 根据题目找到对应的行政区
 function getAnswerFeature(question) {
+  if (question.answerGeometry) {
+    return question.answerGeometry.type === 'Feature'
+      ? question.answerGeometry
+      : {
+          type: 'Feature',
+          properties: {},
+          geometry: question.answerGeometry
+        }
+  }
+
   const source = question.level === 'province'
     ? provinceGeoJSON
     : cityGeoJSON
 
-  if (!source) return null
+  if (!source || !question.adcode) return null
 
   return source.features.find(feature =>
     String(feature.properties.adcode) === String(question.adcode)
@@ -350,7 +470,7 @@ function calculateRegionDistance(point, question) {
 
 let marker = null
 let answerMarker = null
-let hasConfirmed = false
+let hasConfirmed = Number(cloudSession?.session?.current_question || 1) > 5
 
 // 答案展示结束后返回中国全景
 let answerMoveEndHandler = null
@@ -358,12 +478,29 @@ let returnToOverviewTimer = null
 
 
 
-let totalScore = 0
-let questionScores = []
-let questionDistances = []
-let questionGuesses = []
-let currentQuestion = 1
-let correctAnswer = questions[0].coordinates
+const restoredAnswers = cloudSession?.answers || []
+
+let totalScore = restoredAnswers.reduce(
+  (sum, item) => sum + Number(item.score || 0),
+  0
+)
+
+let questionScores = restoredAnswers.map(item => Number(item.score || 0))
+let questionDistances = restoredAnswers.map(item => Number(item.distance_km || 0))
+let questionGuesses = restoredAnswers.map(item => item.guess_coordinates)
+
+let currentQuestion = Math.max(
+  1,
+  Math.min(6, Number(cloudSession?.session?.current_question || 1))
+)
+
+// 临时诊断日志
+console.log('[DEBUG] 当前玩家云端会话：', cloudSession)
+console.log('[DEBUG] 当前题号：', currentQuestion)
+console.log('[DEBUG] 当前玩家答题记录：', cloudSession?.answers)
+
+let correctAnswer = questions[currentQuestion - 1]?.coordinates || null
+
 // 根据实际偏差距离统一确定成绩颜色和分享表情
 function getDistanceLevel(distance) {
   if (distance <= 10) return { color: 'gold', emoji: '🏆' }
@@ -373,7 +510,6 @@ function getDistanceLevel(distance) {
   if (distance <= 500) return { color: 'orange', emoji: '🧭' }
   return { color: 'red', emoji: '🌱' }
 }
-
 // 生成最终成绩总览
 
 // 生成最终成绩总览
@@ -495,7 +631,7 @@ function renderDetailedResults() {
         <div class="detail-city">${question.name}</div>
 
         <figure class="detail-photo-wrap">
-          <img class="detail-photo" src="${question.image}" alt="${question.name}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+          <img class="detail-photo" src="${question.image}" alt="${question.name}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
           <div class="detail-photo-fallback" style="display:none;">图片暂时无法加载</div>
           <figcaption class="detail-photo-credit">${question.imageCredit} · <a href="${question.imageLicense}" target="_blank" rel="noopener noreferrer">${question.imageLicenseName}</a></figcaption>
         </figure>
@@ -675,8 +811,13 @@ detailMap.fitBounds(
     })
   })
 }
+document.querySelector('#progress').textContent =
+  currentQuestion <= 5 ? `第 ${currentQuestion} / 5 题` : '今日挑战已完成'
+document.querySelector('#score-value').textContent = totalScore
 document.querySelector('#coordinates').textContent =
-  questions[currentQuestion - 1].question || `第${currentQuestion}题：请找到${questions[currentQuestion - 1].name}`
+  currentQuestion <= 5
+    ? (questions[currentQuestion - 1].question || `第${currentQuestion}题`)
+    : '今日五道题已全部完成'
 // 地图点击：记录玩家选择的位置
 map.on('click', (e) => {
   if (hasConfirmed) return
@@ -698,79 +839,175 @@ map.on('click', (e) => {
 
   console.log('点击位置：', lng, lat)
 })
+// iPhone Safari / 微信浏览器：首次用户触摸时解锁音频
+document.addEventListener('touchstart', unlockGameAudio, {
+  once: true,
+  passive: true
+})
+
+document.addEventListener('pointerdown', unlockGameAudio, {
+  once: true,
+  passive: true
+})
 
 // 游戏音效
+
+// 游戏音效：兼容 iPhone Safari 和微信内置浏览器
 let audioContext = null
 
-function playGameSound(type) {
+function getAudioContext() {
   const AudioContextClass =
     window.AudioContext || window.webkitAudioContext
 
-  if (!AudioContextClass) return
+  if (!AudioContextClass) return null
 
   if (!audioContext) {
     audioContext = new AudioContextClass()
   }
 
-  if (audioContext.state === 'suspended') {
-    audioContext.resume()
-  }
+  return audioContext
+}
 
-  const now = audioContext.currentTime
-  const oscillator = audioContext.createOscillator()
-  const gain = audioContext.createGain()
+// 在用户第一次触摸页面时解锁音频
+function unlockGameAudio() {
+  const context = getAudioContext()
+  if (!context) return
 
-  oscillator.connect(gain)
-  gain.connect(audioContext.destination)
-
-  if (type === 'connect') {
-    oscillator.type = 'sawtooth'
-    oscillator.frequency.setValueAtTime(260, now)
-    oscillator.frequency.exponentialRampToValueAtTime(620, now + 0.25)
-
-    gain.gain.setValueAtTime(0.001, now)
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.04)
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28)
-
-    oscillator.start(now)
-    oscillator.stop(now + 0.3)
-  }
-
-  if (type === 'hit') {
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(880, now)
-    oscillator.frequency.exponentialRampToValueAtTime(1320, now + 0.12)
-
-    gain.gain.setValueAtTime(0.001, now)
-    gain.gain.linearRampToValueAtTime(0.16, now + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
-
-    oscillator.start(now)
-    oscillator.stop(now + 0.36)
+  if (context.state === 'suspended') {
+    context.resume().catch(error => {
+      console.warn('音频引擎启动失败：', error)
+    })
   }
 }
 
+// 播放游戏音效
+async function playGameSound(type) {
+  const context = getAudioContext()
+  if (!context) return
+
+  try {
+    if (context.state !== 'running') {
+      await context.resume()
+    }
+
+    if (context.state !== 'running') return
+
+    const now = context.currentTime
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+
+    if (type === 'connect') {
+      oscillator.type = 'sawtooth'
+      oscillator.frequency.setValueAtTime(260, now)
+      oscillator.frequency.exponentialRampToValueAtTime(620, now + 0.25)
+
+      gain.gain.setValueAtTime(0.001, now)
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.04)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28)
+
+      oscillator.start(now)
+      oscillator.stop(now + 0.3)
+    }
+
+    if (type === 'hit') {
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(880, now)
+      oscillator.frequency.exponentialRampToValueAtTime(1320, now + 0.12)
+
+      gain.gain.setValueAtTime(0.001, now)
+      gain.gain.linearRampToValueAtTime(0.16, now + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
+
+      oscillator.start(now)
+      oscillator.stop(now + 0.36)
+    }
+  } catch (error) {
+    console.warn('游戏音效播放失败：', error)
+  }
+}
+
+
+// 如果玩家刷新页面时今日挑战已经完成，直接恢复成绩页。
+if (currentQuestion > 5) {
+  renderResultsSummary()
+  renderDistanceDistribution()
+  renderDetailedResults()
+  document.querySelector('#results-screen').style.display = 'block'
+  document.querySelector('#confirm').disabled = true
+  document.querySelector('#next-question').style.display = 'none'
+}
+
 // 确认位置：完整的答题处理流程
-document.querySelector('#confirm').addEventListener('click', () => {
-  if (!marker || hasConfirmed) return
+document.querySelector('#confirm').addEventListener('click', async () => {
+  if (!marker || hasConfirmed || currentQuestion > 5) return
 
   const start = [
     marker.getLngLat().lng,
     marker.getLngLat().lat
   ]
 
-  const distance = calculateRegionDistance(
-    start,
-    questions[currentQuestion - 1]
-  )
+  const confirmButton = document.querySelector('#confirm')
+  confirmButton.disabled = true
 
-  if (distance === null || !Number.isFinite(distance)) {
-    console.error('距离计算失败，本题暂不提交')
+  const originalConfirmText = confirmButton.textContent
+  confirmButton.textContent = '正在核验…'
+  document.querySelector('#coordinates').textContent = '正在提交并核验位置，请稍候…'
+
+  let serverResult
+  try {
+    serverResult = await submitTodayAnswer(currentQuestion, start)
+  } catch (error) {
+    console.error('服务器提交答案失败：', error)
+    confirmButton.disabled = false
+    confirmButton.textContent = originalConfirmText
+    document.querySelector('#coordinates').textContent =
+      `提交失败：${error.message || '请检查网络后重试'}`
+    return
+  }
+
+  const distance = Number(serverResult?.answer?.distance_km)
+  const currentQuestionData = questions[currentQuestion - 1]
+  if (!Number.isFinite(distance) || !serverResult?.reveal) {
+    confirmButton.disabled = false
+    confirmButton.textContent = originalConfirmText
+    document.querySelector('#coordinates').textContent = '服务器返回的数据不完整，请重试'
+    return
+  }
+
+  applyCloudReveal(currentQuestionData, serverResult.reveal)
+
+  // 有行政区代码且服务端省略了大体积 geometry 时，从已并行加载的本地区划数据取边界。
+  if (
+    currentQuestionData.type !== 'mountain' &&
+    !currentQuestionData.answerGeometry &&
+    currentQuestionData.adcode
+  ) {
+    const adminDataReady = await (
+      currentQuestionData.level === 'province'
+        ? provinceGeoJSONPromise
+        : cityGeoJSONPromise
+    )
+    if (!adminDataReady) {
+      confirmButton.disabled = false
+      confirmButton.textContent = originalConfirmText
+      document.querySelector('#coordinates').textContent =
+        '答案已由服务器核验，但本地区划数据加载失败。请刷新页面后重试查看答案。'
+      return
+    }
+  }
+
+  correctAnswer = currentQuestionData.coordinates
+  if (!Array.isArray(correctAnswer) || correctAnswer.length !== 2) {
+    confirmButton.disabled = false
+    confirmButton.textContent = originalConfirmText
+    document.querySelector('#coordinates').textContent = '答案坐标数据异常，请联系管理员'
     return
   }
 
   hasConfirmed = true
-
   questionGuesses.push([...start])
 
   const end = correctAnswer
@@ -800,8 +1037,6 @@ document.querySelector('#confirm').addEventListener('click', () => {
   }
 
   // 高亮正确答案的行政区
-  const currentQuestionData = questions[currentQuestion - 1]
-
   const answerFeature =
     currentQuestionData.type === 'mountain'
       ? null
@@ -1009,12 +1244,8 @@ document.querySelector('#confirm').addEventListener('click', () => {
 
   requestAnimationFrame(animateLine)
 
-  // 计算本题得分
-  const maxScore = [100, 100, 200, 300, 300][currentQuestion - 1]
-
-  const score = Math.round(
-    maxScore * Math.exp(-distance / 2250)
-  )
+  // 正式分数由服务器计算并返回；客户端只负责展示。
+  const score = Number(serverResult.answer.score)
 
   questionScores.push(score)
   questionDistances.push(distance)
@@ -1052,7 +1283,10 @@ document.querySelector('#location-info-content').innerHTML = `
   <p>${currentQuestionData.knowledge}</p>
   <p>${currentQuestionData.fact}</p>
 `
-
+// 每次揭晓新答案，正文默认恢复收起状态
+locationInfo.classList.remove('is-expanded')
+locationInfoToggle.textContent = '展开全文⌄'
+locationInfoToggle.setAttribute('aria-expanded', 'false')
 document.querySelector('#location-info').style.display = 'block'
 
     document.querySelector('#next-question').style.display = 'block'
@@ -1073,54 +1307,50 @@ document.querySelector('#location-info').style.display = 'block'
   document.querySelector('#coordinates').textContent += '（已确认）'
 })
 
-// 分享成绩卡
+
+// 分享成绩卡：预览、系统分享、复制链接、保存图片
 
 document.querySelector('#share-score').addEventListener('click', async () => {
-  const maxScores = [100, 100, 200, 300, 300]
-
-  const getEmoji = (distance) => getDistanceLevel(distance).emoji
-
+  const getEmoji = distance => getDistanceLevel(distance).emoji
 
   const canvas = document.createElement('canvas')
   canvas.width = 1000
   canvas.height = 420
-  
+
   const ctx = canvas.getContext('2d')
-  
-  // 纯白背景
+
+  // 成绩卡白色背景
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, 1000, 420)
-  
-  // TXT / 终端风格字体
+
+  // TXT / 终端风格
   const monoFont =
     '28px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
-  
+
   ctx.fillStyle = '#222222'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.font = monoFont
-  
-  // 标题和日期
+
   const dateText = new Intl.DateTimeFormat('en-CA', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
   }).format(new Date())
-  
+
   ctx.fillText(`中国地理挑战  /  ${dateText}`, 65, 115)
-  
-  // 五题分数和表情
+
   const scoreParts = questionScores.map((score, index) => {
     return `${score} ${getEmoji(questionDistances[index])}`
   })
-  
-  ctx.font = '30px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+
+  ctx.font =
+    '30px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+
   ctx.fillText(scoreParts.join('    '), 65, 210)
-  
-  // 今日总分
+
   ctx.font = monoFont
   ctx.fillText(`今日战绩：${totalScore}`, 65, 305)
-  
 
   try {
     const blob = await new Promise(resolve => {
@@ -1133,7 +1363,11 @@ document.querySelector('#share-score').addEventListener('click', async () => {
 
     const imageUrl = URL.createObjectURL(blob)
 
-    // 创建游戏内分享窗口
+    const gameUrl = 'https://china-geo-game.vercel.app/'
+    const inviteText =
+      '来挑战中国地理！看看你能拿多少分：\n' + gameUrl
+
+    // 创建分享窗口
     let modal = document.querySelector('#custom-share-modal')
 
     if (!modal) {
@@ -1142,32 +1376,40 @@ document.querySelector('#share-score').addEventListener('click', async () => {
 
       modal.innerHTML = `
         <div class="custom-share-panel">
+
           <button class="custom-share-close" aria-label="关闭">×</button>
+
           <img class="custom-share-preview" alt="成绩卡预览">
 
-          <div class="custom-share-icons">
-            <button class="custom-share-wechat" aria-label="微信朋友圈">
-              <svg viewBox="0 0 48 48" aria-hidden="true">
-                <path d="M20 5C10 5 3 11 3 19c0 5 3 9 8 12l-1 7 8-5h2c9 0 16-6 16-14S29 5 20 5Z" fill="white"/>
-                <path d="M29 18c9 0 16 5 16 12 0 4-3 8-7 10l1 5-7-4h-3c-8 0-14-5-14-12s6-11 14-11Z" fill="white"/>
-                <circle cx="15" cy="18" r="2" fill="#20c66b"/>
-                <circle cx="24" cy="18" r="2" fill="#20c66b"/>
-                <circle cx="27" cy="30" r="2" fill="#20c66b"/>
-                <circle cx="36" cy="30" r="2" fill="#20c66b"/>
-              </svg>
-            </button>
+          <button class="custom-share-native" type="button">
+            分享图片和链接
+          </button>
 
-            <button class="custom-share-red" aria-label="小红书">
-              <span>书</span>
+          <div class="custom-share-link">
+            <a
+              class="custom-share-url"
+              href="${gameUrl}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >${gameUrl}</a>
+
+            <button class="custom-share-copy" type="button">
+              复制邀请链接
             </button>
           </div>
 
+          <button class="custom-share-save" type="button">
+            保存成绩图片
+          </button>
+
           <div class="custom-share-feedback"></div>
+
         </div>
       `
 
       document.body.appendChild(modal)
 
+      // 关闭窗口
       modal.querySelector('.custom-share-close').addEventListener('click', () => {
         modal.style.display = 'none'
       })
@@ -1178,6 +1420,7 @@ document.querySelector('#share-score').addEventListener('click', async () => {
         }
       })
 
+      // 保存图片
       const saveImage = () => {
         const link = document.createElement('a')
         link.href = modal.querySelector('.custom-share-preview').src
@@ -1185,16 +1428,90 @@ document.querySelector('#share-score').addEventListener('click', async () => {
         link.click()
       }
 
-      modal.querySelector('.custom-share-wechat').addEventListener('click', () => {
-        saveImage()
-        modal.querySelector('.custom-share-feedback').textContent =
-          '成绩图片已保存，请在微信朋友圈选择图片发布。'
+      // 复制邀请链接
+      const copyInviteLink = async () => {
+        try {
+          await navigator.clipboard.writeText(inviteText)
+          return true
+        } catch (error) {
+          const textarea = document.createElement('textarea')
+          textarea.value = inviteText
+          textarea.style.position = 'fixed'
+          textarea.style.opacity = '0'
+
+          document.body.appendChild(textarea)
+          textarea.select()
+
+          const copied = document.execCommand('copy')
+          textarea.remove()
+
+          return copied
+        }
+      }
+
+      // 调用手机系统分享菜单
+      modal.querySelector('.custom-share-native').addEventListener('click', async () => {
+        const feedback = modal.querySelector('.custom-share-feedback')
+        const blob = modal.shareBlob
+
+        try {
+          if (
+            navigator.share &&
+            navigator.canShare &&
+            typeof File !== 'undefined'
+          ) {
+            const file = new File(
+              [blob],
+              '中国地理挑战-成绩卡.png',
+              { type: 'image/png' }
+            )
+
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: '中国地理挑战',
+                text: inviteText,
+                files: [file]
+              })
+
+              feedback.textContent = '分享菜单已打开，选择你想使用的应用即可。'
+              return
+            }
+          }
+
+          // 当前设备不支持图片系统分享时，使用备用方案
+          saveImage()
+
+          const copied = await copyInviteLink()
+
+          feedback.textContent = copied
+            ? '此设备暂不支持直接分享图片，成绩图片已保存，邀请链接已复制。'
+            : '此设备暂不支持直接分享图片，请保存成绩图片并手动复制上方链接。'
+
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            feedback.textContent = '已取消分享。'
+          } else {
+            console.error('系统分享失败：', error)
+            feedback.textContent = '系统分享暂不可用，可以使用下面的复制链接和保存图片功能。'
+          }
+        }
       })
 
-      modal.querySelector('.custom-share-red').addEventListener('click', () => {
+      // 单独复制链接
+      modal.querySelector('.custom-share-copy').addEventListener('click', async () => {
+        const feedback = modal.querySelector('.custom-share-feedback')
+        const copied = await copyInviteLink()
+
+        feedback.textContent = copied
+          ? '邀请链接已复制，可以粘贴到微信或其他应用。'
+          : '复制失败，请长按上方链接手动复制。'
+      })
+
+      // 单独保存成绩图片
+      modal.querySelector('.custom-share-save').addEventListener('click', () => {
         saveImage()
         modal.querySelector('.custom-share-feedback').textContent =
-          '成绩图片已保存，请在小红书选择图片发布。'
+          '成绩图片已保存。'
       })
     }
 
@@ -1207,6 +1524,10 @@ document.querySelector('#share-score').addEventListener('click', async () => {
     preview.src = imageUrl
     preview.dataset.previousUrl = imageUrl
 
+    // 保存本次成绩图片的 Blob，供系统分享使用
+    modal.shareBlob = blob
+
+    modal.querySelector('.custom-share-feedback').textContent = ''
     modal.style.display = 'flex'
 
     document.querySelector('#share-feedback').textContent = ''
@@ -1218,6 +1539,7 @@ document.querySelector('#share-score').addEventListener('click', async () => {
       '成绩图片生成失败，请稍后重试'
   }
 })
+
 
 document.querySelector('#next-question').addEventListener('click', () => {
     // 进入下一题时，取消上一题尚未执行的返回全景动作
@@ -1294,12 +1616,80 @@ correctAnswer = questions[currentQuestion - 1].coordinates
 })
 
 
-document.querySelector('#track-stats').addEventListener('click', () => {
-  document.querySelector('#share-feedback').textContent =
-    '个人统计功能将在后续版本开放'
+document.querySelector('#track-stats').addEventListener('click', async () => {
+  const button = document.querySelector('#track-stats')
+  const status = document.querySelector('#today-leaderboard-status')
+  const list = document.querySelector('#today-leaderboard')
+  button.disabled = true
+  status.textContent = '正在加载今日统计和排行榜…'
+
+  try {
+    const [statsResult, boardResult] = await Promise.all([
+      getTodayStats(),
+      getTodayLeaderboard(50)
+    ])
+
+    document.querySelector('#today-average-score').textContent = statsResult.participant_count
+      ? `${statsResult.average_score} 分`
+      : '暂无'
+    document.querySelector('#today-participant-count').textContent = String(statsResult.participant_count || 0)
+    document.querySelector('#today-easiest-question').textContent = statsResult.easiest_question
+      ? `第 ${statsResult.easiest_question} 题`
+      : '暂无'
+    document.querySelector('#today-hardest-question').textContent = statsResult.hardest_question
+      ? `第 ${statsResult.hardest_question} 题`
+      : '暂无'
+
+    list.replaceChildren()
+    const rows = boardResult.leaderboard || []
+    if (!rows.length) {
+      status.textContent = '今天还没有玩家完成挑战，成为第一个登上排行榜的人吧！'
+    } else {
+      status.textContent = `今日排行榜 · 前 ${rows.length} 名`
+      rows.forEach((row, index) => {
+        const item = document.createElement('div')
+        item.style.cssText = 'display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(148,163,184,.18);border-radius:10px;background:rgba(15,23,42,.55);color:#e2e8f0;'
+        const rank = document.createElement('strong')
+        rank.textContent = String(index + 1).padStart(2, '0')
+        rank.style.cssText = 'color:#f5c542;font-variant-numeric:tabular-nums;'
+        const name = document.createElement('span')
+        name.textContent = row.display_name || '匿名玩家'
+        name.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+        const score = document.createElement('strong')
+        score.textContent = `${Number(row.total_score || 0)} 分`
+        score.style.cssText = 'font-variant-numeric:tabular-nums;'
+        item.append(rank, name, score)
+        list.append(item)
+      })
+    }
+    document.querySelector('#daily-stats').scrollIntoView({behavior:'smooth', block:'start'})
+  } catch (error) {
+    console.error('加载排行榜失败：', error)
+    status.textContent = `加载失败：${error.message || '请稍后重试'}`
+  } finally {
+    button.disabled = false
+  }
 })
 document.querySelector('#more-challenges-button')
   .addEventListener('click', () => {
     document.querySelector('#more-challenges-feedback')
       .textContent = '更多挑战正在开发中，敬请期待！'
+  })
+  document.querySelector('#back-to-game').addEventListener('click', () => {
+    document.querySelector('#results-screen').style.display = 'none'
+  
+    const locationInfo = document.querySelector('#location-info')
+    if (locationInfo) {
+      locationInfo.style.display = 'none'
+    }
+  
+    document.querySelector('#confirm').disabled = true
+    document.querySelector('#next-question').style.display = 'none'
+  
+    map.resize()
+    map.easeTo({
+      center: [104, 35],
+      zoom: 2.8,
+      duration: 800
+    })
   })
