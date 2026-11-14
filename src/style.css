@@ -1378,3 +1378,371 @@ body,
   border-radius: 10px;
   font-size: 12px;
 }
+
+/* 分享窗口：系统分享与邀请链接 */
+
+.custom-share-native {
+  width: min(460px, 100%);
+  padding: 14px 20px;
+  border: 1px solid #35e8e8;
+  border-radius: 6px;
+  background: rgba(0, 180, 200, 0.2);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.custom-share-native:hover {
+  background: rgba(0, 180, 200, 0.4);
+}
+
+.custom-share-link {
+  width: min(460px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+}
+
+.custom-share-url {
+  flex: 1;
+  min-width: 0;
+  color: #65dfff;
+  font-size: 13px;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+.custom-share-copy {
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border: 1px solid #35e8e8;
+  border-radius: 5px;
+  background: rgba(0, 180, 200, 0.2);
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.custom-share-copy:hover {
+  background: rgba(0, 180, 200, 0.4);
+}
+
+.custom-share-save {
+  padding: 10px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.custom-share-save:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.custom-share-feedback {
+  min-height: 20px;
+  color: #9ceafa;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .custom-share-panel {
+    width: 100%;
+    gap: 16px;
+  }
+
+  .custom-share-link {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .custom-share-url {
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .custom-share-copy {
+    width: 100%;
+  }
+
+  .custom-share-native {
+    width: 100%;
+  }
+}
+
+/* =========================================
+   手机端答案详情卡片：正文折叠与宽度调整
+   电脑版完全保持原样
+========================================= */
+
+#location-info-toggle {
+  display: none;
+}
+
+/* =====================================================
+   2026-11 mobile layout correction
+   仅覆盖手机竖屏；桌面端及游戏业务逻辑保持不变
+===================================================== */
+@media screen and (max-width: 600px) and (orientation: portrait) {
+  html,
+  body,
+  #app {
+    height: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 规则按钮独立占据顶部左侧，题目栏不再与它重叠 */
+  #how-to-play {
+    position: fixed !important;
+    top: calc(10px + env(safe-area-inset-top)) !important;
+    bottom: auto !important;
+    left: 12px !important;
+    right: auto !important;
+    z-index: 70 !important;
+    min-height: 38px;
+    padding: 8px 11px !important;
+    font-size: 12px !important;
+  }
+
+  /* 顶部题目区整体下移，分数和题目文字保持清晰 */
+  #game-header {
+    position: fixed !important;
+    top: calc(58px + env(safe-area-inset-top)) !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+    z-index: 40 !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 10px !important;
+    row-gap: 7px !important;
+    padding: 9px 11px !important;
+    border-radius: 8px;
+  }
+
+  #progress {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    font-size: 11px !important;
+  }
+
+  #score-display {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+  #score-value {
+    font-size: 27px !important;
+  }
+
+  #game-header #coordinates {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    font-size: clamp(13px, 3.7vw, 15px) !important;
+    line-height: 1.45 !important;
+    overflow-wrap: anywhere;
+  }
+
+  #game-header #coordinates .distance-feedback {
+    font-size: 11px !important;
+    line-height: 1.55 !important;
+  }
+
+  /* 地图缩放控件放在题目栏下方，不与分数叠放 */
+  #map .maplibregl-ctrl-top-right {
+    top: calc(190px + env(safe-area-inset-top)) !important;
+    right: 5px !important;
+  }
+
+  #map .maplibregl-ctrl-group {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  /* 确认/下一题按钮共用同一操作位置；版权信息保留在最底部 */
+  #confirm,
+  #next-question {
+    position: fixed !important;
+    top: auto !important;
+    right: 12px !important;
+    left: auto !important;
+    bottom: calc(54px + env(safe-area-inset-bottom)) !important;
+    z-index: 80 !important;
+    min-height: 42px;
+    padding: 9px 16px !important;
+    font-size: 14px !important;
+    border-radius: 8px;
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.3);
+  }
+
+  #map .maplibregl-ctrl-bottom-right {
+    right: 6px !important;
+    bottom: calc(5px + env(safe-area-inset-bottom)) !important;
+    z-index: 25 !important;
+  }
+
+  #map .maplibregl-ctrl-attrib {
+    max-width: min(72vw, 300px);
+    font-size: 10px;
+  }
+
+  /* 答案卡片位于地图上方、操作按钮上方；正文在卡片内滚动 */
+  #location-info {
+    position: fixed !important;
+    top: auto !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: calc(112px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: min(46dvh, calc(100dvh - 330px - env(safe-area-inset-top))) !important;
+    margin: 0 !important;
+    padding: 14px 14px 12px !important;
+    transform: none !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    z-index: 60 !important;
+    border-radius: 14px;
+  }
+
+  .location-info-kicker {
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 9px;
+  }
+
+  .location-info-title {
+    margin-bottom: 8px;
+    font-size: 21px;
+  }
+
+  #location-info-content {
+    max-height: 5.1em;
+    overflow: hidden;
+    font-size: 12px !important;
+    line-height: 1.65 !important;
+    overflow-wrap: anywhere;
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  }
+
+  #location-info.is-expanded #location-info-content {
+    max-height: none;
+    overflow: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  #location-info-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(69, 220, 255, 0.65);
+    border-radius: 8px;
+    background: rgba(20, 190, 220, 0.09);
+    color: #55eaff;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  #location-info.is-expanded {
+    max-height: min(62dvh, calc(100dvh - 230px - env(safe-area-inset-top))) !important;
+  }
+
+  /* 成绩页保留原有视觉，仅压缩手机端留白并防止横向溢出 */
+  #results-screen {
+    height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #results-content {
+    width: calc(100% - 24px);
+    max-width: 440px;
+    margin: 14px auto 28px;
+  }
+
+  #results-summary,
+  #distance-section,
+  #daily-stats,
+  #detailed-results {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  #final-score {
+    font-size: clamp(54px, 16vw, 68px);
+  }
+
+  .results-actions {
+    gap: 7px;
+  }
+
+  .results-actions button,
+  #results-summary #share-score {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .distance-label {
+    width: 84px;
+    font-size: 10px;
+  }
+
+  .distance-count {
+    width: 32px;
+    font-size: 10px;
+  }
+}
+
+@media screen and (max-width: 380px) and (orientation: portrait) {
+  #game-header {
+    left: 7px !important;
+    right: 7px !important;
+    padding: 8px 9px !important;
+  }
+
+  #game-header #coordinates {
+    font-size: 13px !important;
+  }
+
+  #location-info {
+    left: 7px !important;
+    right: 7px !important;
+    padding: 12px !important;
+  }
+
+  #results-content {
+    width: calc(100% - 16px);
+  }
+
+  .distance-label {
+    width: 76px;
+    font-size: 9px;
+  }
+}
